@@ -7,6 +7,6 @@
 - name: enable PAM configuration
   command: >
     pam-auth-update
-    -- enable mkhomedir
-    -- force
+    --enable mkhomedir
+    --force
   when: ansible_os_family == "Debian"      
