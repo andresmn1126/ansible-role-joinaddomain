@@ -1,0 +1,87 @@
+---
+- name: Include OS specific variables
+  include_vars: "{{ ansible_os_family }}.yml"
+
+- name: Install required packages
+  package:
+    update_cache: true
+    name: "{{ item }}"
+    state: present
+  loop: "{{ packages }}"
+
+- name: Install pexpect using pip
+  pip:
+    name: pexpect
+
+- name: Checking Domain join status
+  shell: /bin/bash -c "/usr/sbin/realm discover {{ ad_domain }} | grep -q sssd"
+  register: ad_status
+  changed_when: false
+  ignore_errors: true
+
+- name: Join linux into domain
+  expect:
+    command: /bin/bash -c "/usr/sbin/realm join {{ ad_domain }} --user={{ ad_domain_user }}"
+    responses:
+      Password.*: "{{ ad_domain_pass }}"
+  when: ad_status.rc == 0
+
+- name: Allow User Login without FQDN
+  lineinfile: 
+    backup: yes
+    state: present
+    dest: /etc/sssd/sssd.conf
+    regexp: '^{{ item.search }}'
+    line: '{{ item.replace }}'
+  with_items:
+    - { search: 'use_fully_qualified_names', replace: 'use_fully_qualified_names = False' }
+    - { search: 'fallback_homedir', replace: 'fallback_homedir = /home/%u' }
+  notify:
+    - restart sssd
+
+- name: Flush handlers
+  meta: flush_handlers
+
+
+- name: Copy pam auth config file to enable home directory auto creation
+  copy:
+    src: mkhomedir
+    dest: /usr/share/pam-configs/mkhomedir
+    backup: true
+    force: true
+    owner: root
+    mode: 0622
+  notify: enable PAM configuration  
+  when: ansible_os_family == "Debian"  
+
+- name: Add alllowed ssh users via realm permit
+  shell: |
+    /bin/bash -c "/usr/sbin/realm permit {{ item }}"
+  changed_when: false
+  ignore_errors: true
+  loop: "{{ ad_ssh_users }}"
+  when: ad_ssh_users is defined          
+
+- name: Add allowed ssh groups via realm permit
+  shell: |
+    /bin/bash -c "/usr/sbin/realm permit -g '{{ item }}'"
+  changed_when: false
+  ignore_errors: true
+  loop: "{{ ad_ssh_groups }}"
+  when: ad_ssh_groups is defined
+
+- name: Create sudoers file for each ad user
+  copy:
+    content: '{{ item }} ALL=(ALL) ALL'
+    dest: "/etc/sudoers.d/{{ item }}"
+    mode: 0440
+  loop: "{{ ad_ssh_users }}" 
+
+- name: Create sudoers file for each ad group
+  copy:
+    content: '%{{ item | replace(" ", "\ ;") | replace(";", "") }} ALL=(ALL) ALL'
+    dest: '/etc/sudoers.d/{{ item | replace(" ", "_") }}'
+    mode: 0440
+  loop: "{{ ad_ssh_groups }}"            
+
+

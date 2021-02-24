@@ -1,0 +1,12 @@
+---
+- name: restart sssd
+  service:
+    name: sssd
+    state: restarted
+
+- name: enable PAM configuration
+  command: >
+    pam-auth-update
+    -- enable mkhomedir
+    -- force
+  when: ansible_os_family == "Debian"      
