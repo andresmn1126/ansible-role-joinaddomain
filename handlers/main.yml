@@ -1,9 +1,4 @@
 ---
-- name: restart sssd
-  service:
-    name: sssd
-    state: restarted
-
 - name: enable PAM configuration
   command: >
     pam-auth-update

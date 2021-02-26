@@ -13,8 +13,8 @@
   pip:
     name: pexpect
 
-- name: Checking Domain join status
-  shell: /bin/bash -c "/usr/sbin/realm discover {{ ad_domain }} | grep -q sssd"
+- name: Checking if already joined to a domain
+  shell: /bin/bash -c "/usr/sbin/realm list {{ ad_domain }}"
   register: ad_status
   changed_when: false
   ignore_errors: true
@@ -24,7 +24,8 @@
     command: /bin/bash -c "/usr/sbin/realm join {{ ad_domain }} --user={{ ad_domain_user }}"
     responses:
       Password.*: "{{ ad_domain_pass }}"
-  when: ad_status.rc == 0
+  when: "{{ ad_domain not in ad_status.stdout }}"
+  register: domain_joined
 
 - name: Allow User Login without FQDN
   lineinfile: 
@@ -39,9 +40,11 @@
   notify:
     - restart sssd
 
-- name: Flush handlers
-  meta: flush_handlers
-
+# Added reboot task as loginctl enable linger was not working until after a reboot was done
+- name: Reboot machine after it is joined to the domain
+  reboot:
+    reboot_timeout: 120
+  when: domain_joined is changed 
 
 - name: Copy pam auth config file to enable home directory auto creation
   copy:
