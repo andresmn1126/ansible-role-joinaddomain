@@ -24,7 +24,7 @@
     command: /bin/bash -c "/usr/sbin/realm join {{ ad_domain }} --user={{ ad_domain_user }}"
     responses:
       Password.*: "{{ ad_domain_pass }}"
-  when: "{{ ad_domain not in ad_status.stdout }}"
+  when: ad_domain not in ad_status.stdout
   register: domain_joined
 
 - name: Allow User Login without FQDN
@@ -37,8 +37,6 @@
   with_items:
     - { search: 'use_fully_qualified_names', replace: 'use_fully_qualified_names = False' }
     - { search: 'fallback_homedir', replace: 'fallback_homedir = /home/%u' }
-  notify:
-    - restart sssd
 
 # Added reboot task as loginctl enable linger was not working until after a reboot was done
 - name: Reboot machine after it is joined to the domain
@@ -46,45 +44,46 @@
     reboot_timeout: 120
   when: domain_joined is changed 
 
-- name: Copy pam auth config file to enable home directory auto creation
-  copy:
-    src: mkhomedir
-    dest: /usr/share/pam-configs/mkhomedir
-    backup: true
-    force: true
-    owner: root
-    mode: 0622
-  notify: enable PAM configuration  
-  when: ansible_os_family == "Debian"  
-
-- name: Add alllowed ssh users via realm permit
-  shell: |
-    /bin/bash -c "/usr/sbin/realm permit {{ item }}"
-  changed_when: false
-  ignore_errors: true
-  loop: "{{ ad_ssh_users }}"
-  when: ad_ssh_users is defined          
-
-- name: Add allowed ssh groups via realm permit
-  shell: |
-    /bin/bash -c "/usr/sbin/realm permit -g '{{ item }}'"
-  changed_when: false
-  ignore_errors: true
-  loop: "{{ ad_ssh_groups }}"
-  when: ad_ssh_groups is defined
-
-- name: Create sudoers file for each ad user
-  copy:
-    content: '{{ item }} ALL=(ALL) ALL'
-    dest: "/etc/sudoers.d/{{ item }}"
-    mode: 0440
-  loop: "{{ ad_ssh_users }}" 
-
-- name: Create sudoers file for each ad group
-  copy:
-    content: '%{{ item | replace(" ", "\ ;") | replace(";", "") }} ALL=(ALL) ALL'
-    dest: '/etc/sudoers.d/{{ item | replace(" ", "_") }}'
-    mode: 0440
-  loop: "{{ ad_ssh_groups }}"            
-
+- block:
+  - name: Copy pam auth config file to enable home directory auto creation
+    copy:
+      src: mkhomedir
+      dest: /usr/share/pam-configs/mkhomedir
+      backup: true
+      force: true
+      owner: root
+      mode: 0622
+    notify: enable PAM configuration  
+    when: ansible_os_family == "Debian"  
+  
+  - name: Add alllowed ssh users via realm permit
+    shell: |
+      /bin/bash -c "/usr/sbin/realm permit {{ item }}"
+    changed_when: false
+    ignore_errors: true
+    loop: "{{ ad_ssh_users }}"
+    when: ad_ssh_users is defined          
+  
+  - name: Add allowed ssh groups via realm permit
+    shell: |
+      /bin/bash -c "/usr/sbin/realm permit -g '{{ item }}'"
+    changed_when: false
+    ignore_errors: true
+    loop: "{{ ad_ssh_groups }}"
+    when: ad_ssh_groups is defined
+  
+  - name: Create sudoers file for each ad user
+    copy:
+      content: '{{ item }} ALL=(ALL) ALL'
+      dest: "/etc/sudoers.d/{{ item }}"
+      mode: 0440
+    loop: "{{ ad_ssh_users }}" 
+  
+  - name: Create sudoers file for each ad group
+    copy:
+      content: '%{{ item | replace(" ", "\ ;") | replace(";", "") }} ALL=(ALL) ALL'
+      dest: '/etc/sudoers.d/{{ item | replace(" ", "_") }}'
+      mode: 0440
+    loop: "{{ ad_ssh_groups }}"            
+  when: domain_joined is changed
 
