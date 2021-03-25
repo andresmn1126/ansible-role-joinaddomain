@@ -77,13 +77,13 @@
       content: '{{ item }} ALL=(ALL) ALL'
       dest: "/etc/sudoers.d/{{ item }}"
       mode: 0440
-    loop: "{{ ad_ssh_users }}" 
+    loop: "{{ ad_sudo_users }}" 
   
   - name: Create sudoers file for each ad group
     copy:
       content: '%{{ item | replace(" ", "\ ;") | replace(";", "") }} ALL=(ALL) ALL'
       dest: '/etc/sudoers.d/{{ item | replace(" ", "_") }}'
       mode: 0440
-    loop: "{{ ad_ssh_groups }}"            
+    loop: "{{ ad_sudo_groups }}"            
   when: domain_joined is changed
 

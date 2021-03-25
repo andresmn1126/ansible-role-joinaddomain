@@ -4,3 +4,5 @@ ad_domain_user:
 ad_domain_pass:
 ad_ssh_users: []
 ad_ssh_groups: []
+ad_sudo_users: []
+as_sudo_groups: []
