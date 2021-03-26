@@ -9,5 +9,4 @@ packages:
   - oddjob 
   - oddjob-mkhomedir 
   - packagekit
-  - python3-pip
-  - python-pip
+

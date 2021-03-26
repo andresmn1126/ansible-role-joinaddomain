@@ -2,6 +2,16 @@
 - name: Include OS specific variables
   include_vars: "{{ ansible_os_family }}.yml"
 
+- block:
+    - name: Install proper version of pip based on installed python interpreter
+    - package:
+        name: python-pip
+      when: ansible_python.version.major==2
+
+    - package:
+        name: python3-pip
+      when: ansible_python.version.major==3  
+
 - name: Install required packages
   package:
     update_cache: true
