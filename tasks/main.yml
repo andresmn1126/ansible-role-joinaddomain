@@ -47,6 +47,7 @@
   with_items:
     - { search: 'use_fully_qualified_names', replace: 'use_fully_qualified_names = False' }
     - { search: 'fallback_homedir', replace: 'fallback_homedir = /home/%u' }
+  when: domain_joined is changed
 
 # Added reboot task as loginctl enable linger was not working until after a reboot was done
 - name: Reboot machine after it is joined to the domain
@@ -87,13 +88,15 @@
       content: '{{ item }} ALL=(ALL) ALL'
       dest: "/etc/sudoers.d/{{ item }}"
       mode: 0440
-    loop: "{{ ad_sudo_users }}" 
+    loop: "{{ ad_sudo_users }}"
+    when: ad_sudo_users is defined
   
   - name: Create sudoers file for each ad group
     copy:
       content: '%{{ item | replace(" ", "\ ;") | replace(";", "") }} ALL=(ALL) ALL'
       dest: '/etc/sudoers.d/{{ item | replace(" ", "_") }}'
       mode: 0440
-    loop: "{{ ad_sudo_groups }}"            
+    loop: "{{ ad_sudo_groups }}"
+    when: ad_sudo_users is defined            
   when: domain_joined is changed
 
